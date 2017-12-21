@@ -33,6 +33,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package org.firstinspires.ftc.robotcore.internal.collections;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 /**
  * {@link SimpleGson} helps avoid the space and time penalties of repeatedly initializing
@@ -46,8 +47,19 @@ public class SimpleGson
         {
         public static final Gson theInstance = new Gson();
         }
+
+    protected static Gson exposedOnlyInstance = null;
+
     public static Gson getInstance()
         {
         return InstanceHolder.theInstance;
+        }
+
+    public static Gson getExposedOnlyInstance ()
+        {
+        if (exposedOnlyInstance == null)
+            exposedOnlyInstance = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().create();
+
+        return exposedOnlyInstance;
         }
     }

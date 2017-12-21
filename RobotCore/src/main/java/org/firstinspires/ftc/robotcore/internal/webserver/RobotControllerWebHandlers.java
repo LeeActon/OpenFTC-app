@@ -32,7 +32,10 @@ package org.firstinspires.ftc.robotcore.internal.webserver;
 
 import android.content.res.AssetManager;
 import android.support.annotation.NonNull;
+import android.util.Pair;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.qualcomm.robotcore.R;
 import com.qualcomm.robotcore.hardware.configuration.LynxConstants;
 import com.qualcomm.robotcore.util.RobotLog;
@@ -56,6 +59,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import fi.iki.elonen.NanoHTTPD;
 
@@ -100,8 +105,14 @@ public class RobotControllerWebHandlers
     public static final String PARAM_NEW_NAME = "new_name";
     public static final String PARAM_MESSAGE = "message";
 
+    private static WebHandlerManager manager;
+    private static List<Pair<String, WebHandler>> handlers = null;
+    private static List<Pair<String, WebHandlerFilter>> handlerFilters = null;
+
     public static void initialize(WebHandlerManager manager)
     {
+        RobotControllerWebHandlers.manager = manager;
+
         manager.register("/",                       new ServerRootIndex(INDEX_FILE));
         manager.register(URI_ANON_PING,             new AnonymousPing());
         manager.register(URI_PING,                  decorateWithParms(new ClientPing())); // overridden in ProgrammingWebHandlers
@@ -119,6 +130,61 @@ public class RobotControllerWebHandlers
         AppThemeColorsHandler colorsHandler = new AppThemeColorsHandler();
         manager.register(URI_COLORS, colorsHandler);
         manager.registerObserver(URI_COLORS, colorsHandler);
+
+        if (handlers != null) {
+            for(Pair<String, WebHandler> pair : handlers) {
+                manager.register(pair.first, pair.second);
+            }
+        }
+
+        if (handlerFilters != null) {
+            for(Pair<String, WebHandlerFilter> pair : handlerFilters) {
+                manager.registerFilter(pair.first, pair.second);
+            }
+        }
+
+    }
+
+    /**
+     * Register a key, value pair. Associate a String command with a {@link WebHandler}.
+     *
+     * Delegate to manager if we know it otherwise just keep track of the pair until
+     * we know the manager.
+     *
+     * @param command String a uri that is part of an IHTTPSession
+     * @param webHandler RequestHandler
+     */
+    public static void register(String command, WebHandler webHandler)
+    {
+        if (manager != null) {
+            manager.register(command, webHandler);
+        } else {
+            if (handlers == null)
+                handlers = new ArrayList<Pair<String, WebHandler>>();
+
+            handlers.add(new Pair(command, webHandler));
+        }
+    }
+
+    /**
+     * Register a key, value pair. Associate a String key with a {@link WebHandlerFilter}.
+     *
+     * Delegate to manager if we know it otherwise just keep track of the pair until
+     * we know the manager.
+     *
+     * @param key a unique name for this WebHandlerFilter
+     * @param webHandlerFilter RequestHandler
+     */
+    public static void registerFilter(String key, WebHandlerFilter webHandlerFilter)
+    {
+        if (manager != null) {
+            manager.register(key, webHandlerFilter);
+        } else {
+            if (handlerFilters == null)
+                handlerFilters = new ArrayList<Pair<String, WebHandlerFilter>>();
+
+            handlerFilters.add(new Pair(key, webHandlerFilter));
+        }
     }
 
     public static WebHandler decorateWithParms(WebHandler delegate)
@@ -247,6 +313,86 @@ public class RobotControllerWebHandlers
             return NoCachingWebHandler.setNoCache(session, newFixedLengthResponse(Response.Status.OK, MimeTypesUtil.getMimeType("json"), jsonResponse));
         }
     }
+
+    /**
+     * Returns json containing list of files in the directory
+     * Paths are relative to root, not absolute
+     */
+    public static class ListFilesWebHandler implements WebHandler
+    {
+        private File dir;
+        public ListFilesWebHandler(File dir)
+        {
+            this.dir = dir;
+        }
+
+        @Override
+        public Response getResponse(IHTTPSession session) throws IOException, NanoHTTPD.ResponseException
+        {
+            synchronized (this) {
+                List<String> result = new ArrayList<>();
+                for (File file : this.dir.listFiles()) {
+                    if (file.isFile()) {
+                        File relative = AppUtil.getInstance().getRelativePath(dir, file.getAbsoluteFile());
+
+                        if (relative.isAbsolute()) {
+                            RobotLog.ee(TAG, "internal error: %s not under %s", file, dir);
+                        } else {
+                            result.add(relative.getPath());
+                        }
+                    }
+                }
+                String json = SimpleGson.getInstance().toJson(result);
+                return newFixedLengthResponse(Response.Status.OK, MimeTypesUtil.getMimeType("json"), json);
+            }
+        }
+    }
+
+    public static class StringWebHandler implements WebHandler {
+        private String mimeType;
+        private Object value;
+
+        public StringWebHandler()
+        {
+            this.mimeType = NanoHTTPD.MIME_PLAINTEXT;
+        }
+
+        public void setValue(Object value) {
+            this.value = value;
+        }
+
+        public void setMimeType(String mimeType) {
+            this.mimeType = mimeType;
+
+        }
+
+        @Override
+        public Response getResponse(IHTTPSession session) throws IOException, NanoHTTPD.ResponseException {
+            String string = (this.value == null) ? "" : this.value.toString();
+
+            return newFixedLengthResponse(Response.Status.OK, this.mimeType, string);
+        }
+    }
+
+    public static class JsonWebHandler implements WebHandler {
+        private Object object;
+
+        public JsonWebHandler() {}
+
+        public JsonWebHandler(Object object) {
+            this.object = object;
+        }
+
+        public Object getObject() {return object;}
+        public void setObject(Object object) {this.object = object;}
+
+        @Override
+        public Response getResponse(IHTTPSession session) throws IOException, NanoHTTPD.ResponseException {
+            return newFixedLengthResponse(Response.Status.OK,
+                MimeTypesUtil.getMimeType("json"), SimpleGson.getExposedOnlyInstance().toJson(object) );
+        }
+    }
+
 
     /**
      * Returns json containing the full paths to all the extant log files.
@@ -678,6 +824,183 @@ public class RobotControllerWebHandlers
 
         @Override public Response getResponse(IHTTPSession session)
         {
+            return WebHandlerManager.OK_RESPONSE;
+        }
+    }
+
+    public static class FileWebHandler implements WebHandlerFilter
+    {
+        private final Pattern pattern;
+        private final File dirPath;
+        private File fullPath;
+
+        /**
+         * Construction that takes the directory path that the file will be written into as a String
+         * parameter
+         *
+         * @param dirPath absolute path for the directory.
+         */
+        public FileWebHandler(String regex, File dirPath)
+        {
+            this.pattern = Pattern.compile(regex);
+            this.dirPath = dirPath;
+        }
+
+        /**
+         * Return true if the url for session matches pattern.
+         *
+         * @param session the IHTTPSession of interest.
+         * @return true if this handler should be used for the session.
+         */
+        @Override
+        public boolean wantToHandle(IHTTPSession session) {
+            String url = session.getUri().toString();
+            Matcher matcher = this.pattern.matcher(url);
+
+            this.fullPath = null;
+            boolean isMatch = matcher.find();
+            if (isMatch) {
+                // Figure out the full path now for subsequent call to getResponse().
+                String filePart = url.substring(matcher.end());
+                this.fullPath = new File(this.dirPath, filePart);
+            }
+            return isMatch;
+        }
+
+        /**
+         * Read/Write a file from/to the directory.
+         *
+         * @param session one IHTTPSession that will return one Response
+         * @return an "OK" Response if the transfer was a success and an "ERROR" Response otherwise.
+         */
+        @Override
+        public Response getResponse(IHTTPSession session)
+        {
+            synchronized (this) { // paranoia
+                if (this.fullPath != null) {
+                    switch (session.getMethod()) {
+                        case GET:
+                            return readFile(this.fullPath);
+
+                        case PUT:
+                            return getPutResponse(session, this.fullPath);
+                    }
+                }
+                return WebHandlerManager.INTERNAL_ERROR_RESPONSE;
+            }
+        }
+
+        private Response getPutResponse(IHTTPSession session, final File file) {
+            final byte[] bytes = buildByteArray(session);
+
+            if (bytes.length == 0)
+            {
+                return WebHandlerManager.OK_RESPONSE;
+            }
+
+            try {
+                readRawContent(session, bytes);
+            } catch (IOException e) {
+            }
+
+            return writeFile(file, bytes);
+        }
+
+        /**
+         * readRawContent.
+         *
+         * @param session Current IHTTPSession
+         * @param raw byte array to read the data into
+         *
+         * @throws IOException If the first byte cannot be read for any reason other than end
+         * of file, or if the input stream has been closed, or if some other I/O error occurs.
+         */
+        private void readRawContent(IHTTPSession session, byte[] bytes) throws IOException
+        {
+            final InputStream stream = session.getInputStream();
+            int nBytes;
+            int offset = 0;
+            int len = bytes.length;
+
+            while (offset < bytes.length)
+            {
+                nBytes = stream.read(bytes, offset, len);
+                len -= nBytes;
+                offset += nBytes;
+            }
+            if (offset == -1)
+            {
+                final String errorString = "File not read";
+                RobotLog.ee(TAG, errorString);
+                throw new IOException(errorString);
+            }
+        }
+
+        /**
+         * buildByteArray.
+         *
+         * @param session Current IHTTPSession
+         * @return new byte array of length contentLength from the session
+         */
+        private byte[] buildByteArray(IHTTPSession session)
+        {
+            final String contentLengthString = session.getHeaders().get("content-length");
+            final int contentLength = Integer.parseInt(contentLengthString);
+            return new byte[contentLength];
+        }
+
+        /**
+         * checkDir.
+         *
+         * @param dir in question
+         * @return true if the directory exists, false if it could not be made.
+         */
+        private boolean checkDir(File dir)
+        {
+            if (!dir.exists())
+            {
+                if (!dir.mkdir())
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private Response readFile(final File fullPath)
+        {
+            InputStream inputStream;
+            try {
+                // One might be tempted to truncate files here based on length. But that would
+                // only be a reasonable thing to do for a limited number of file formats.
+                inputStream = new BufferedInputStream(new FileInputStream(fullPath));
+            }
+            catch (IOException e) {
+                return newFixedLengthResponse(Response.Status.NOT_FOUND, NanoHTTPD.MIME_PLAINTEXT, "");
+            }
+            Response response = newChunkedResponse(Response.Status.OK, MimeTypesUtil.determineMimeType(fullPath.getName()), inputStream);
+            response.addHeader("Content-Disposition", "attachment; filename=\"" + fullPath.getName() + "\"");
+            return response;
+        }
+
+        /**
+         * writeFile.
+         *
+         * @param fullPath File to write.
+         * @param rawFile byte array of raw data to write
+         * @return An "OK" response if the write succeeded and "ERROR" otherwise.
+         */
+        private Response writeFile(final File fullPath, final byte[] rawFile)
+        {
+            if (!checkDir(dirPath)) {
+                return WebHandlerManager.internalErrorResponse(TAG, "Could Not Build Updates Directory");
+            }
+
+            try (OutputStream stream = new FileOutputStream(fullPath)) {
+                stream.write(rawFile);
+            } catch (IOException e) {
+                return WebHandlerManager.internalErrorResponse(TAG, e.getMessage());
+            }
             return WebHandlerManager.OK_RESPONSE;
         }
     }

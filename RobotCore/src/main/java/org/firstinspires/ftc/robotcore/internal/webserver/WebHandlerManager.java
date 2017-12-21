@@ -59,6 +59,7 @@ public final class WebHandlerManager
     public static final String TAG = WebHandlerManager.class.getSimpleName();
 
     private final Map<String, WebHandler> handlerMap = new ConcurrentHashMap<>(37);
+    private final Map<String, WebHandlerFilter> handlerFilterMap = new ConcurrentHashMap<>(37);
     private final Map<String, WebObserver> observersMap = new ConcurrentHashMap<>();
     private final WebHandler serveAsset = new ServeAsset();
     private final WebServer webServer;
@@ -178,6 +179,21 @@ public final class WebHandlerManager
         return handlerMap.get(command);
     }
 
+    /**
+     * Register a key, value pair. Associate a String key with a {@link WebHandlerFilter}.
+     *
+     * @param key a unique name for this WebHandlerFilter
+     * @param webHandlerFilter RequestHandler
+     */
+    public void registerFilter(String key, WebHandlerFilter webHandlerFilter)
+    {
+        handlerFilterMap.put(key, webHandlerFilter);
+    }
+    public WebHandlerFilter getRegisteredFilter(String key)
+    {
+        return handlerFilterMap.get(key);
+    }
+
     public void registerObserver(String key, WebObserver webObserver)
     {
         // We don't ourselves here need the key, but it allows replacement for clients
@@ -202,11 +218,17 @@ public final class WebHandlerManager
         final WebHandler webHandler = handlerMap.get(command);
 
         try {
-            if (webHandler == null) {
-                return serveAsset.getResponse(session);
-            } else {
+            if (webHandler != null)
                 return webHandler.getResponse(session);
+
+            // Run through the registered filters to see if they want to handle this request.
+            for (WebHandlerFilter handlerFilter : handlerFilterMap.values()) {
+                if (handlerFilter.wantToHandle(session))
+                    return handlerFilter.getResponse(session);
             }
+
+            // Didn't find any other handler so look for a file to serve in the assets.
+            return serveAsset.getResponse(session);
         } catch (IOException e) {
             RobotLog.logStackTrace(e);
             return newFixedLengthResponse(NanoHTTPD.Response.Status.INTERNAL_ERROR, NanoHTTPD.MIME_PLAINTEXT, "Internal Error");

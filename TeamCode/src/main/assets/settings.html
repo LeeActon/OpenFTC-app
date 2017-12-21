@@ -1,0 +1,184 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+      <title>Robot Controller Settings</title>
+
+      <link href="JSONEditor/dist/jsoneditor.min.css" rel="stylesheet" type="text/css">
+      <script src="JSONEditor/dist/jsoneditor-minimalist.min.js"></script>
+      <script src="js/jquery-3.1.1.min.js"></script>
+
+      <style type="text/css">
+          body {
+              font: 10.5pt arial;
+              color: #4d4d4d;
+              line-height: 150%;
+              width: 500px;
+          }
+
+        code {
+            background-color: #f5f5f5;
+        }
+
+        #jsonEditor {
+            width: 500px;
+            height: 500px;
+        }
+      </style>
+</head>
+<body>
+    <table>
+
+        <tr><td>
+            <label>File: <input id="fileName" type="text"> </label>
+            <input id="saveButton" type="button" value="Save"/>
+            <input id="getMetaButton" type="button" value="Get Meta"/>
+            <input id="activeSettingsButton" type="button" value="Get Active Settings"/>
+        </td></tr>
+        <tr>
+            <td><label>Files: <select id="fileList"></select> </label></td>
+        </tr>
+        <tr> <td>
+            <div id="jsonEditor"></div>
+        </td></tr>
+        <tr><td>
+            <a id="downloadLink" download></a>
+        </td></tr>
+        <tr> <td>
+            <div id="statusMessage"></div>
+        </td></tr>
+    </table>
+
+    <script>
+        var currentFileName;
+        var currentFileType;
+        var jsonEditor;
+        var $statusMessage;
+        var $saveButton;
+        var $saveButtonAs;
+        var $downloadLink;
+        var $fileList;
+        var $fileName;
+        var $activeSettingsButton;
+        var $getMetaButton;
+
+        function loadFilesList() {
+            $.ajax("/settings",
+                {
+                method: "GET",
+                success: function(jsonData, textStatus, jqXHR)
+                    {
+                    updateFilesList(jsonData);
+                    }
+                });
+        }
+
+        function updateFilesList(filesJson) {
+            $fileList.empty();
+            $.each(filesJson,
+                function (key, value) {
+                    $fileList.append($('<option></option>').attr('value', value).text(value));
+                });
+        }
+
+        function setCurrentFileName(fileName) {
+            var isNewName = (currentFileName != fileName);
+            currentFileName = fileName;
+            if (isNewName) {
+                var fullPath = "/settings/" + currentFileName;
+                $downloadLink.attr("href", fullPath);
+                $downloadLink.text("Download " + fileName);
+                $fileName.val(fileName);
+            }
+
+            return isNewName;
+        }
+
+        function save() { saveAs($fileName.val()); }
+
+        function getSettingsFileText() {
+            var text = jsonEditor.getText();
+
+            return currentFileType + "\n" + text + "\n";
+        }
+
+        function setSettingsFileText(text) {
+            var lines = text.split("\n");
+
+            if (lines.length >= 2) {
+                var data = JSON.parse(lines[1]);
+                currentFileType = lines[0];
+                jsonEditor.set(data);
+            }
+        }
+
+        function saveAs(fileName) {
+            var isNewName = setCurrentFileName(fileName);
+            $.ajax("/settings/" + fileName,
+                {
+                method: "PUT",
+                data: getSettingsFileText(),
+                success: function (data, textStatus, jqXHR)
+                    {
+                    $statusMessage.html(textStatus);
+                    if (isNewName)
+                        loadFilesList();
+                    }
+                });
+        }
+
+        function load(fileName) {
+            setCurrentFileName(fileName);
+            $.ajax("/settings/" + fileName,
+                {
+                method: "GET",
+                success: function(data, textStatus, jqXHR)
+                    {
+                    setSettingsFileText(data);
+                    }
+                });
+        }
+
+        function selectFile() {
+            load($fileList.val());
+        }
+
+        function getMeta() {
+            load("$meta");
+            $fileName.val("meta");
+        }
+
+        function activeSettings() {
+            load("$activeSettings");
+            $fileName.val("");
+        }
+
+        $(document).ready(function() {
+            $statusMessage = $("#statusMessage");
+            $saveButton = $("#saveButton");
+            $downloadLink = $("#downloadLink");
+            $fileList = $("#fileList");
+            $fileName = $("#fileName");
+            $getMetaButton = $("#getMetaButton");
+            $activeSettingsButton = $("#activeSettingsButton");
+
+            jsonEditor = new JSONEditor($("#jsonEditor").get(0),
+                {
+                mode: 'tree',
+                modes: ['text', 'tree'], // allowed modes
+                onError: function (err) { $statusMessage.html(err.toString());},
+                onEditable: function (node) { return {field: false, value: true}; }
+                }
+            );
+
+            activeSettings();
+            loadFilesList();
+
+            $saveButton.on("click", save);
+            $getMetaButton.on("click", getMeta);
+            $activeSettingsButton.on("click", activeSettings);
+            $fileList.change(selectFile);
+            }
+            );
+    </script>
+</body>
+</html>

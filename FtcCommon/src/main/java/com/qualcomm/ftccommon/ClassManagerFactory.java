@@ -37,6 +37,7 @@ import com.qualcomm.robotcore.hardware.configuration.UserConfigurationTypeManage
 import org.firstinspires.ftc.robotcore.external.Supplier;
 import org.firstinspires.ftc.robotcore.internal.opmode.AnnotatedOpModeClassFilter;
 import org.firstinspires.ftc.robotcore.internal.opmode.ClassManager;
+import org.firstinspires.ftc.robotcore.internal.opmode.RunOnStartupClassFilter;
 
 import java.util.Collection;
 
@@ -57,6 +58,7 @@ public class ClassManagerFactory {
         ClassManager classManager = ClassManager.getInstance();
         classManager.registerFilter(AnnotatedOpModeClassFilter.getInstance());
         classManager.registerFilter(UserConfigurationTypeManager.getInstance());
+        classManager.registerFilter(RunOnStartupClassFilter.getInstance());
     }
 
     public static void registerResourceFilters()
