@@ -4,6 +4,8 @@ package org.firstinspires.ftc.robotcontroller.external.samples;
 import org.firstinspires.ftc.robotcore.internal.opmode.RunOnStartup;
 import org.firstinspires.ftc.robotcore.internal.settings.MetaSettings;
 
+import static org.firstinspires.ftc.robotcore.internal.webserver.RobotControllerWebHandlers.registerWebPage;
+
 
 @RunOnStartup()
 public class ConceptSettingsHttp implements Runnable {
@@ -21,5 +23,7 @@ public class ConceptSettingsHttp implements Runnable {
             exampleSettings = new ExampleSettings();
             metaSettings.setActiveSettings(exampleSettings);
         }
+
+        registerWebPage(-1, "Robot Settings","/settings.html");
     }
 }

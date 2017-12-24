@@ -1,52 +1,45 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-      <title>Robot Controller Settings</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta charset="utf-8">
+      <link rel="stylesheet" href="/css/bootstrap.min.css">
 
-      <link href="JSONEditor/dist/jsoneditor.min.css" rel="stylesheet" type="text/css">
+      <link rel="stylesheet" href="JSONEditor/dist/jsoneditor.min.css" type="text/css">
       <script src="JSONEditor/dist/jsoneditor-minimalist.min.js"></script>
       <script src="js/jquery-3.1.1.min.js"></script>
-
-      <style type="text/css">
-          body {
-              font: 10.5pt arial;
-              color: #4d4d4d;
-              line-height: 150%;
-              width: 500px;
-          }
-
-        code {
-            background-color: #f5f5f5;
-        }
-
-        #jsonEditor {
-            width: 500px;
-            height: 500px;
-        }
-      </style>
+      <script type="text/javascript" src="/js/bootstrap.min.js"></script>
+      <link rel="stylesheet/less" type="text/css" href="/css/manage.less">
+      <script type="text/javascript" src="/js/less.min.js"></script>
 </head>
 <body>
-    <table>
+    <div class="bordered-text-block">
+        <div>
+            <h1>Robot Settings</h1>
 
-        <tr><td>
-            <label>File: <input id="fileName" type="text"> </label>
-            <input id="saveButton" type="button" value="Save"/>
-            <input id="getMetaButton" type="button" value="Get Meta"/>
-            <input id="activeSettingsButton" type="button" value="Get Active Settings"/>
-        </td></tr>
-        <tr>
-            <td><label>Files: <select id="fileList"></select> </label></td>
-        </tr>
-        <tr> <td>
-            <div id="jsonEditor"></div>
-        </td></tr>
-        <tr><td>
-            <a id="downloadLink" download></a>
-        </td></tr>
-        <tr> <td>
-            <div id="statusMessage"></div>
-        </td></tr>
-    </table>
+            <p>Pick settings from this list to view and make changes to them. Remember to Click <b>Save As</b> to save the changes.</p>
+            <p><select id="fileList"></select></p>
+            <p></p>
+            <p>MetaSettings are settings about settings. In particular it indicates which settings the robot controller should load on startup.</p>
+            <p>Click <b>MetaSettings</b> to edit the current MetaSettings. Click <b>Active Settings</b> to edit the settings the robot controller has loaded.</p>
+            <p>
+                <input id="getMetaButton" class="aligned-select-button" type="button" value="MetaSettings"/>
+                <input id="activeSettingsButton" class="aligned-select-button" type="button" value="Active Settings"/>
+            </p>
+        </div>
+        <div>
+            <p>Enter a name and click <b>Save As</b> to save changes to settings.</p>
+            <p>
+                <input id="saveButton" class="aligned-select-button" type="button" value="Save As"/><input id="fileName" class="centered-feedback" type="text">
+            </p>
+        </div>
+        <div id="jsonEditor"></div>
+        <div>
+            <p>Click the link below to download the current settings to this computer.</p>
+            <a id="downloadLink">></a>
+        </div>
+        <div id="statusMessage"></div>
+    </div>
 
     <script>
         var currentFileName;
@@ -95,19 +88,25 @@
 
         function save() { saveAs($fileName.val()); }
 
-        function getSettingsFileText() {
+        function getSettingsAsText() {
             var text = jsonEditor.getText();
 
             return currentFileType + "\n" + text + "\n";
         }
 
-        function setSettingsFileText(text) {
+        function loadJsonEditor(name, text) {
             var lines = text.split("\n");
 
             if (lines.length >= 2) {
                 var data = JSON.parse(lines[1]);
                 currentFileType = lines[0];
                 jsonEditor.set(data);
+                var parts = currentFileType.split(".");
+                var className = "Object";
+                if (parts.length > 1) {
+                    className = parts[parts.length -1];
+                }
+                jsonEditor.setName(className + " " + name);
             }
         }
 
@@ -116,7 +115,7 @@
             $.ajax("/settings/" + fileName,
                 {
                 method: "PUT",
-                data: getSettingsFileText(),
+                data: getSettingsAsText(),
                 success: function (data, textStatus, jqXHR)
                     {
                     $statusMessage.html(textStatus);
@@ -133,7 +132,8 @@
                 method: "GET",
                 success: function(data, textStatus, jqXHR)
                     {
-                    setSettingsFileText(data);
+                    loadJsonEditor(fileName, data);
+                    $statusMessage.html("");
                     }
                 });
         }
@@ -163,10 +163,12 @@
 
             jsonEditor = new JSONEditor($("#jsonEditor").get(0),
                 {
-                mode: 'tree',
-                modes: ['text', 'tree'], // allowed modes
+                mode: 'form',
+                modes: ['text', 'form'], // allowed modes
                 onError: function (err) { $statusMessage.html(err.toString());},
-                onEditable: function (node) { return {field: false, value: true}; }
+                onEditable: function (node) { return {field: false, value: true}; },
+                onChange: function () {},
+                search: false
                 }
             );
 

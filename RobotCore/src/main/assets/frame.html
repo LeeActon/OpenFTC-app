@@ -89,10 +89,7 @@
         </div>
         <div id="theNavBarData" class="collapse navbar-collapse">
             <ul id="theNavBarItems" class="nav navbar-nav">
-                <!-- see RobotControllerWebHandlers -->
-                <li role="presentation" id="id_nav_blocks"   ><a href="javascript:void(0);" onclick="navToFromAnchor(this);">Blocks</a></li>
-                <li role="presentation" id="id_nav_onbotjava"><a href="javascript:void(0);" onclick="navToFromAnchor(this);">OnBotJava</a></li>
-                <li role="presentation" id="id_nav_manage"   ><a href="javascript:void(0);" onclick="navToFromAnchor(this);">Manage</a></li>
+                <!--- This gets loaded with items by loadNavBar() -->
             </ul>
             <ul id="theNavBarItemsRight" class="nav navbar-nav navbar-right">
                 <li role="presentation" id="id_nav_help"     ><a href="javascript:void(0);" onclick="navToFromAnchor(this);">Help</a></li>
@@ -134,9 +131,6 @@
         return obj.getAttribute("data-page");
     }
 
-    setNavDestById("id_nav_blocks", URI_NAV_BLOCKS);
-    setNavDestById("id_nav_onbotjava", URI_NAV_ONBOTJAVA);
-    setNavDestById("id_nav_manage", URI_NAV_MANAGE);
     setNavDestById("id_nav_help", URI_NAV_HELP);
     setNavDestById("id_nav_exit", URI_EXIT_PROGRAM_AND_MANAGE);
 
@@ -309,6 +303,38 @@
     less.pageLoadFinished.then(navigateToPageInQueryString);
     less.pageLoadFinished.then(function() {
         console.log("finished loading");
+    });
+
+    function loadNavBar(items) {
+        var $navBarItems = $("#theNavBarItems");
+        $.each(items,
+            function (key, value) {
+                var $li = $("<li/>").attr("role", "presentation");
+                var $a = $("<a/>").text(value.title);
+                $a.attr("href", "javascript:void(0);");
+                $a.on("click",
+                    function () {
+                        navToFromAnchor(this);
+                    });
+                $li.append($a);
+                $li.attr("data-page", value.url);
+                $navBarItems.append($li);
+            });
+    }
+
+    function initNavBar() {
+        $.ajax("/navBarItems$", // this url must match the corresponding url in RobotControllerWebHandlers.java
+            {
+            method: "GET",
+            success: function(jsonData, textStatus, jqXHR)
+                {
+                loadNavBar(jsonData);
+                }
+            });
+    }
+
+    $(document).ready(function() {
+        initNavBar();
     });
 </script>
 

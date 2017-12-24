@@ -5,8 +5,8 @@ import com.google.gson.annotations.Expose;
 import org.firstinspires.ftc.robotcore.internal.settings.Settings;
 
 public class ExampleSettings extends Settings {
-    @Expose boolean isRedAliance;
-    @Expose boolean isNearSide;
+    @Expose public boolean isRedAliance;
+    @Expose public boolean isNearSide;
 
     public class ClawSystem {
         @Expose public float loadPosition;
@@ -23,24 +23,24 @@ public class ExampleSettings extends Settings {
     @Expose public ElevatorSystem elevatorSystem = new ElevatorSystem();
 
     public class BallFlickerSystem {
-        @Expose String VerticalServoName;
-        @Expose String horizontalServoName;
+        @Expose public String VerticalServoName;
+        @Expose public String horizontalServoName;
 
-        @Expose float horizontalCenterPosition;
-        @Expose float horizontalFlickAmount;
-        @Expose float verticalTopPosition;
-        @Expose float verticalBottomPosition;
+        @Expose public float horizontalCenterPosition;
+        @Expose public float horizontalFlickAmount;
+        @Expose public float verticalTopPosition;
+        @Expose public float verticalBottomPosition;
     }
     @Expose public BallFlickerSystem leftBallFlickerSystem = new BallFlickerSystem();
     @Expose public BallFlickerSystem rightBallFlickerSystem = new BallFlickerSystem();
 
     public class DriveSystem {
-        @Expose String frontLeftMotorName;
-        @Expose String frontRightMotorName;
-        @Expose String backLeftMotorName;
-        @Expose String backRightMotorName;
+        @Expose public String frontLeftMotorName;
+        @Expose public String frontRightMotorName;
+        @Expose public String backLeftMotorName;
+        @Expose public String backRightMotorName;
 
-        @Expose float maxPower;
+        @Expose public float maxPower;
     }
     @Expose public DriveSystem driveSystem = new DriveSystem();
 }

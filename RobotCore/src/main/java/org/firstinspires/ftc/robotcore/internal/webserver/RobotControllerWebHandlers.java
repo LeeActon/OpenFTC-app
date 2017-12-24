@@ -36,6 +36,7 @@ import android.util.Pair;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.Expose;
 import com.qualcomm.robotcore.R;
 import com.qualcomm.robotcore.hardware.configuration.LynxConstants;
 import com.qualcomm.robotcore.util.RobotLog;
@@ -81,7 +82,6 @@ public class RobotControllerWebHandlers
 
     public static final String URI_RC_CONFIG = "/js/rc_config.js";  // knowledge of this constant is in .js files too
     public static final String URI_NAV_HOME = "/connection.html";
-    public static final String URI_NAV_MANAGE = "/manage.html";
     public static final String URI_NAV_HELP = "/help.html";
     public static final String URI_ANON_PING = "/anonymousPing";
     public static final String URI_PING = "/ping";
@@ -108,6 +108,18 @@ public class RobotControllerWebHandlers
     private static WebHandlerManager manager;
     private static List<Pair<String, WebHandler>> handlers = null;
     private static List<Pair<String, WebHandlerFilter>> handlerFilters = null;
+    private static ArrayList<NavBarItem> navBarItems = null;
+
+    public static class NavBarItem
+    {
+        @Expose public String title;
+        @Expose public String url;
+
+        public NavBarItem(String title, String url) {
+            this.title = title;
+            this.url = url;
+        }
+    }
 
     public static void initialize(WebHandlerManager manager)
     {
@@ -126,6 +138,14 @@ public class RobotControllerWebHandlers
         manager.register(URI_REBOOT,                new Reboot());
         manager.register(URI_TOAST,                 new SimpleSuccess());
         manager.register(URI_EXIT_PROGRAM_AND_MANAGE, new SimpleSuccess()); // actually *fully* handled in ProgramAndManageActivity, but registering make things neat and tidy
+
+        registerWebPage(0, "Blocks","/FtcBlocksProjects.html");
+        registerWebPage(1, "OnBotJava","/java/editor.html");
+        registerWebPage(2, "Manage","/manage.html");
+
+        JsonWebHandler navBarItemsJsonWebHandler = new JsonWebHandler(navBarItems);
+        navBarItemsJsonWebHandler.setObject(navBarItems);
+        manager.register("/navBarItems$", navBarItemsJsonWebHandler);
 
         AppThemeColorsHandler colorsHandler = new AppThemeColorsHandler();
         manager.register(URI_COLORS, colorsHandler);
@@ -185,6 +205,17 @@ public class RobotControllerWebHandlers
 
             handlerFilters.add(new Pair(key, webHandlerFilter));
         }
+    }
+
+    public static void registerWebPage(int index, String title, String url) {
+        if (navBarItems == null) {
+            navBarItems = new ArrayList<NavBarItem>();
+        }
+        NavBarItem newItem = new NavBarItem(title, url);
+        if (index < 0)
+            navBarItems.add(newItem);
+        else
+            navBarItems.add(index, newItem);
     }
 
     public static WebHandler decorateWithParms(WebHandler delegate)
@@ -750,7 +781,6 @@ public class RobotControllerWebHandlers
             appendVariable(js, "URI_UPLOAD_EXPANSION_HUB_FIRMWARE", URI_UPLOAD_EXPANSION_HUB_FIRMWARE);
             appendVariable(js, "URI_UPDATE_CONTROL_HUB_APK", URI_UPDATE_CONTROL_HUB_APK);
             appendVariable(js, "URI_NAV_HOME", URI_NAV_HOME);
-            appendVariable(js, "URI_NAV_MANAGE", URI_NAV_MANAGE);
             appendVariable(js, "URI_NAV_HELP", URI_NAV_HELP);
             appendVariable(js, "URI_RC_INFO", URI_RC_INFO);
             appendVariable(js, "URI_REBOOT", URI_REBOOT);
